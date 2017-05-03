@@ -167,16 +167,41 @@ function Cube(x,y,z,scale){
         this.scale(scale,scale,scale);
         this.scaleVal = scale;
     }
+    
+    
+    
+}
+Cube.prototype = Object.create(Shape.prototype);
+Cube.prototype.constructor = Cube;
+
+
+function Enemy(x,y,z,scale){
+    Cube.apply(this,arguments);
     this.translate(x,y+0.5,z);
     this.loc[0]=x;
     this.loc[1]=y+0.5;
+    this.loc[2]=z;
+    this.materialAmbient = vec4( 0.5, 0.0, 1.0, 1.0 );
+    this.materialDiffuse = vec4( 1.0, 0.8, 0.5, 1.0);
+    this.materialSpecular = vec4( 0.5, 0.2, 1.0, 1.0 );
+    this.materialShininess = 100.0;
+}
+Enemy.prototype = Object.create(Cube.prototype);
+Enemy.prototype.constructor = Enemy;
+
+function Bullet(x,y,z,scale){
+    Cube.apply(this,arguments);
+    this.translate(x,y,z);
+    this.loc[0]=x;
+    this.loc[1]=y;
     this.loc[2]=z;
     this.materialAmbient = vec4( 0.0, 0.5, 0.0, 1.0 );
     this.materialDiffuse = vec4( 0.0, 0.8, 1.0, 1.0);
     this.materialSpecular = vec4( 0.5, 0.2, 1.0, 1.0 );
     this.materialShininess = 100.0;
 }
-
+Bullet.prototype = Object.create(Cube.prototype);
+Bullet.prototype.constructor = Enemy;
 
 
 
@@ -210,8 +235,6 @@ Quad.prototype.dim = function(){
 }
 
   
-Cube.prototype = Object.create(Shape.prototype);
-Cube.prototype.constructor = Cube;
 
 function LineSegment(p1,p2,color){
     Shape.apply(this,arguments);
@@ -476,7 +499,7 @@ window.onload = function init() {
         //console.log(p1);
 
         //scene.push(new LineSegment(p0,p1,black));
-        scene.push(new Cube(p1[0],p1[1],p1[2],0.25));
+        scene.push(new Bullet(p1[0],p1[1],p1[2],0.25));
         var vel = vec3();
         vel[0]=p1[0]-p0[0];
         vel[1]=p1[1]-p0[1];
@@ -530,7 +553,7 @@ window.onload = function init() {
             return;
         }
         //if(Math.random()<0.1){
-            scene.push(new Cube(tracks[n],0,dim[2]));
+            scene.push(new Enemy(tracks[n],0,dim[2]));
             scene[scene.length-1].velocity[2] = 0.05;
             //scene[scene.length-1].rot_velocity[0] = Math.random()*5;
             //scene[scene.length-1].rot_velocity[1] = Math.random()*5;
