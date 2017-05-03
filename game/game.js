@@ -6,7 +6,10 @@ var gl;
 
 var points = [];
 var colors = [];
-
+var KEYCODE_w = 87;
+var KEYCODE_a = 65;
+var KEYCODE_s = 83;
+var KEYCODE_d = 68;
 
 //perspective is applied FROM the point of the eye.
 //looking AT the origin
@@ -438,7 +441,7 @@ window.onload = function init() {
     if ( !gl ) { alert( "WebGL isn't available" ); }
 
     gl.viewport( 0, 0, canvas.width, canvas.height );
-    gl.clearColor( 0.25, 0.25, 0.25, 0.25 );
+    gl.clearColor( 0.1, 0.1, 0.1, 1 );
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -515,6 +518,7 @@ window.onload = function init() {
         console.log(scene.length);
 
     }
+    document.addEventListener('keydown',keycontrol);
     //
     //  Load shaders and initialize attribute buffers
     //
@@ -541,12 +545,12 @@ window.onload = function init() {
     //console.log(tracks);
     setInterval(function(){
         var n = Math.floor(Math.random()*tracks.length);
-        console.log(n);
+        //console.log(n);
         var contains=false;
         for(var j=1;j<scene.length;j++){
             if((scene[j].loc[0] == tracks[n])&&(scene[j].loc[1] == 0.5)){
                 contains=true; 
-                console.log("CONTAINS");       
+                //console.log("CONTAINS");       
             }
         }
         if(contains){
@@ -554,7 +558,7 @@ window.onload = function init() {
         }
         //if(Math.random()<0.1){
             scene.push(new Enemy(tracks[n],0,dim[2]));
-            scene[scene.length-1].velocity[2] = 0.05;
+            scene[scene.length-1].velocity[2] = 0.1*(Math.random()*0.5)+0.05;
             //scene[scene.length-1].rot_velocity[0] = Math.random()*5;
             //scene[scene.length-1].rot_velocity[1] = Math.random()*5;
             //scene[scene.length-1].rot_velocity[2] = Math.random()*5;
@@ -565,7 +569,34 @@ window.onload = function init() {
 }
 
 
+function keycontrol(event){
+  if(((event.keyCode == KEYCODE_w)
+  ||(event.keyCode == KEYCODE_a)
+  ||(event.keyCode == KEYCODE_s)
+  ||(event.keyCode == KEYCODE_d))) {
+   
+    if(event.keyCode == KEYCODE_w) {
+      if(v_theta*180/Math.PI<174){v_theta += dr;}
+      console.log(v_theta);
 
+    }
+    else if(event.keyCode == KEYCODE_a) {
+      if(v_phi*180/Math.PI>5){
+        v_phi -= dr;
+      }
+        
+    }
+    else if(event.keyCode == KEYCODE_s) {
+        if(v_theta*180/Math.PI>6){
+          v_theta -= dr;console.log(v_theta*180/Math.PI);
+        }
+    }
+    else if(event.keyCode == KEYCODE_d) {
+        if(v_phi*180/Math.PI<81){v_phi += dr;}
+        console.log(v_phi*180/Math.PI);
+    }
+  }
+}
 
 
 
@@ -641,7 +672,7 @@ var render = function() {
         }
 
         for(var i=1;i<scene.length;i++){
-            if((scene[i].loc[2]>10.5)&&(scene[i].loc[1]==0.5)){
+            if((scene[i].loc[2]>9.5)&&(scene[i].loc[1]==0.5)){
                 scene.splice(i,1);
                 escaped++;
                 document.getElementById("escaped").textContent =escaped.toString();
