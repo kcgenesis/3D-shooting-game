@@ -47,12 +47,13 @@ var m;
 
 //var red;
 //var mycube;
-var black,red;
+var black,red,blue;
 var scene=[];
 var tracks =[];
 var dim=[];
 var escaped=0;
 var eliminated=0;
+var fired=0;
 
 var rx,ry,rz;
 
@@ -409,19 +410,23 @@ window.onload = function init() {
    
     black = vec4(0.0, 0.0, 0.0, 1.0);
     red = vec4( 1.0, 0.0, 0.0, 1.0 );
+    blue = vec4( 0.0, 0.0, 1.0, 1.0 );
     document.getElementById("escaped").textContent ="0";
     document.getElementById("eliminated").textContent ="0";
+    document.getElementById("accuracy").textContent ="N/A";
     //
     //  Add event listeners
     //
-    document.getElementById( "inc_theta" ).onclick = function () {v_theta += dr;console.log(eye);};
-    document.getElementById( "dec_theta" ).onclick = function () {v_theta -= dr;console.log(eye);};
-    document.getElementById( "inc_phi" ).onclick = function () {v_phi += dr;console.log(eye);};
-    document.getElementById( "dec_phi" ).onclick = function () {v_phi -= dr;console.log(eye);};
+    //document.getElementById( "inc_theta" ).onclick = function () {v_theta += dr;console.log(eye);};
+    //document.getElementById( "dec_theta" ).onclick = function () {v_theta -= dr;console.log(eye);};
+    //document.getElementById( "inc_phi" ).onclick = function () {v_phi += dr;console.log(eye);};
+    //document.getElementById( "dec_phi" ).onclick = function () {v_phi -= dr;console.log(eye);};
 
     document.getElementById("gl-canvas").onclick = function(e){
         //call unproject
-
+        fired++;
+        var percent = Math.floor(eliminated/fired*100);
+        document.getElementById("accuracy").textContent = percent.toString() + "%";
         var vec = vec3(event.pageX - canvasbox.left, event.pageY - canvasbox.top, 0);
         var p0 = unproject(vec[0], vec[1], near, viewMatrix, projectionMatrix, viewport);
         var p1 = unproject(vec[0], vec[1], far, viewMatrix, projectionMatrix, viewport);
@@ -597,7 +602,7 @@ var render = function() {
 
         
 
-        //6 faces 4 points each: each face has a shadow!
+        //6 faces 4 points each: each face has a fadow!
         for(var i=0; i<points.length; i+=4) {
             gl.uniform4fv(fColor, flatten(colors[i]));
             gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
