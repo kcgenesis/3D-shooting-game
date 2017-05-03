@@ -7,11 +7,14 @@
 		attribute vec4 vPosition;
 		uniform mat4 modelViewMatrix;
 		uniform mat4 projectionMatrix;
-		uniform mat4 r_theta;
+		//uniform mat4 r_theta;
 		void main()
 		{
-		    gl_Position = r_theta*vPosition;
+
+		    //gl_Position = r_theta*vPosition;
+		    gl_Position=vPosition;
 		    gl_Position = projectionMatrix*modelViewMatrix*gl_Position;
+		    //gl_Position.z = -gl_Position.z;
 		}
 	</script>
 
@@ -35,10 +38,18 @@
 	<script type="text/javascript" src="game.js"></script>
 	<script type="text/javascript" src="../Common/MV.js"></script>
 
+
 	<body>
 		<canvas id="gl-canvas" width="512" height="512">
 			Oops ... your browser doesn't support the HTML5 canvas element
 		</canvas>
-
+		<button id = "inc_theta">Increase theta</button>
+		<button id = "dec_theta">Decrease theta</button>
+		<button id = "inc_phi">Increase phi</button>
+		<button id = "dec_phi">Decrease phi</button>
+		<h3>mouse location</h3>
+		<div id="mouseLoc"></div>
+		<h3>world locaiton</h3>
+		<div id="worldLoc"></div>
 	</body>
 </html>
