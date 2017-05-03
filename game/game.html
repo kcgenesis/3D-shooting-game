@@ -21,7 +21,10 @@
 	<script id="vertex-shader" type="x-shader/x-vertex">
 	attribute  vec4 vPosition;
 	attribute  vec3 vNormal;
+	attribute  vec2 vTexCoord;
+
 	varying vec4 fColor;
+	varying vec2 fTexCoord;
 
 	uniform vec4 ambientProduct, diffuseProduct, specularProduct;
 	uniform mat4 modelViewMatrix;
@@ -64,20 +67,21 @@
 
 	    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
 	    fColor = ambient + diffuse +specular;
-	    
+	    fTexCoord = vTexCoord;
 	    fColor.a = 1.0;
+
 	}
 	</script>
 
 	<script id="fragment-shader" type="x-shader/x-fragment">
-
 		precision mediump float;
-		
+		varying  vec2 fTexCoord;
+		uniform sampler2D texture;
 		varying vec4 fColor;
 		void
 		main()
 		{
-		    gl_FragColor = fColor;
+		    gl_FragColor = fColor*texture2D(texture,fTexCoord);
 		}
 	</script>
 
@@ -86,6 +90,7 @@
 	<script type="text/javascript" src="../Common/initShaders.js"></script>
 	
 	<script type="text/javascript" src="../Common/MV.js"></script>
+	<script type="text/javascript" src="pic.js"></script>
 	<script type="text/javascript" src="game.js"></script>
 
 	<body>

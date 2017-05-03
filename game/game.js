@@ -50,6 +50,7 @@ var shadowSpecular = vec4( 0.0, 0.0, 0.0, 1.0 );
 var shadowShininess = 0.0;
 
 var nBuffer,vNormal;
+var tBuffer,vTexCoord;
 //var r_theta;
 //var r_thetaLoc;
 
@@ -57,6 +58,12 @@ var nBuffer,vNormal;
 var eye, at, up;
 
 var m;
+var texCoord = [
+    vec2(0, 0),
+    vec2(0, 1),
+    vec2(1, 1),
+    vec2(1, 0)
+];
 
 //var red;
 //var mycube;
@@ -69,6 +76,68 @@ var eliminated=0;
 var fired=0;
 
 var rx,ry,rz;
+
+var cubeImage;
+var texSize = 512;
+
+function initTextures() {
+  cubeImage = new Image();
+  cubeImage.src = 'sa.gif';
+  //cubeImage.crossOrigin = '';
+  cubeImage.onload = function() { configureTexture(cubeImage); }
+  
+}
+
+/*
+function handleTextureLoaded(image) {
+    var texture = gl.createTexture();
+    gl.activeTexture=(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+
+}
+*/
+
+
+function IsImageOk(img) {
+    // During the onload event, IE correctly identifies any images that
+    // weren’t downloaded as not complete. Others should too. Gecko-based
+    // browsers act like NS4 in that they report this incorrectly.
+    if (!img.complete) {
+        return false;
+    }
+
+    // However, they do have two very useful properties: naturalWidth and
+    // naturalHeight. These give the true size of the image. If it failed
+    // to load, either of these should be zero.
+
+    if (typeof img.naturalWidth !== "undefined" && img.naturalWidth === 0) {
+        return false;
+    }
+
+    // No other way of checking: assume it’s ok.
+    return true;
+}
+
+
+
+function configureTexture(image) {
+    var texture = gl.createTexture();
+    gl.activeTexture( gl.TEXTURE0 );
+    gl.bindTexture( gl.TEXTURE_2D, texture );
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, texSize, texSize, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap( gl.TEXTURE_2D );
+    gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
+        gl.NEAREST_MIPMAP_LINEAR );
+    gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
+}
 
 function unproject(clickX, clickY, clickZ, view, proj, viewport) {
     var m = mult(proj, view);
@@ -98,6 +167,7 @@ function Shape(x,y,z){
     this.points = [];
     this.colors = [];
     this.normals =[];
+    this.texCoordsArray=[];
     this.velocity = [0,0,0];
     this.vertexColors = [
         [ 0.0, 0.0, 0.0, 1.0 ],  // black
@@ -111,7 +181,7 @@ function Shape(x,y,z){
     ];
 }
 
-Shape.prototype.quad = function(a,b,c,d){
+Shape.prototype.quad = function(a,b,c,d,t){
     var vertices = [ 
         vec4( -0.5, -0.5,  0.5, 1.0 ),
         vec4( -0.5,  0.5,  0.5, 1.0 ),
@@ -131,6 +201,9 @@ Shape.prototype.quad = function(a,b,c,d){
     for ( var i = 0; i < indices.length; ++i ) {
         this.points.push( vertices[indices[i]] );
         this.normals.push(normal);
+        if(t){
+            this.texCoordsArray.push(texCoord[i]);
+        }
     }
     this.colors.push(this.vertexColors[a]);
 
@@ -209,7 +282,7 @@ Bullet.prototype.constructor = Enemy;
 //negative to positive 10 in x and z
 function Quad(){
     Shape.apply(this,arguments);
-    this.quad( 3, 0, 4, 7 );
+    this.quad( 3, 0, 4, 7,true );
     this.translate(0,0.5,0);
     var s1=20;
     var s2 = 20;
@@ -325,6 +398,7 @@ Cube.prototype.render=function(){
     for(var i=0; i<this.points.length; i+=4) {
         gl.drawArrays(gl.TRIANGLE_FAN, i, 4);
     }
+
 }
 
 Quad.prototype.render=function(){
@@ -360,10 +434,19 @@ Quad.prototype.render=function(){
     gl.uniform1f(gl.getUniformLocation(program,
        "shininess"),this.materialShininess);
 
+    gl.bindBuffer( gl.ARRAY_BUFFER, tBuffer);
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.texCoordsArray), gl.STATIC_DRAW );
+    gl.vertexAttribPointer(vTexCoord, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vTexCoord);
+
+    
+
     for(var i=0; i<this.points.length; i+=4) {
         gl.uniform4fv(u_fColor, flatten(this.colors[i/4]));
         gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
     }
+
+    
 }
 
 
@@ -448,7 +531,7 @@ window.onload = function init() {
     //r_theta = mat4();
 
 
-
+    initTextures();
     
 
 
@@ -527,6 +610,10 @@ window.onload = function init() {
     //gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW );
 
     vPosition = gl.getAttribLocation( program, "vPosition" );
+
+    tBuffer = gl.createBuffer();
+    vTexCoord = gl.getAttribLocation( program, "vTexCoord");
+
     //gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
     //gl.enableVertexAttribArray( vPosition );
 
