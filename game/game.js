@@ -29,8 +29,8 @@ var ytop = 2.0;
 var bottom = -2.0;
 //perspective viewing variables
 var near = 1;
-var far = 40;
-var  fovy = 30.0;
+var far = 45;
+var  fovy = 40.0;
 var aspect;
 
 var viewMatrix,shadowViewMatrix, projectionMatrix;
@@ -47,9 +47,14 @@ var m;
 
 //var red;
 //var mycube;
-var black;
+var black,red;
 var scene=[];
+var tracks =[];
+var dim=[];
+var escaped=0;
+var eliminated=0;
 
+var rx,ry,rz;
 
 function unproject(clickX, clickY, clickZ, view, proj, viewport) {
     var m = mult(proj, view);
@@ -103,25 +108,12 @@ function unproject(clickX, clickY, clickZ, view, proj, viewport) {
 
 function Shape(x,y,z){
     this.rot = mat4();
-    this.to_rot = [0,0,0];
+    this.rot_velocity = [0,0,0];
     this.loc = vec3(x,y,z);
     this.points = [];
     this.colors = [];
     this.velocity = [0,0,0];
-}
-
-Shape.prototype.quad = function(a,b,c,d){
-    var vertices = [
-        vec4( -0.5, -0.5,  0.5, 1.0 ),
-        vec4( -0.5,  0.5,  0.5, 1.0 ),
-        vec4(  0.5,  0.5,  0.5, 1.0 ),
-        vec4(  0.5, -0.5,  0.5, 1.0 ),
-        vec4( -0.5, -0.5, -0.5, 1.0 ),
-        vec4( -0.5,  0.5, -0.5, 1.0 ),
-        vec4(  0.5,  0.5, -0.5, 1.0 ),
-        vec4(  0.5, -0.5, -0.5, 1.0 )
-    ];
-    var vertexColors = [
+    this.vertexColors = [
         [ 0.0, 0.0, 0.0, 1.0 ],  // black
         [ 1.0, 0.0, 0.0, 1.0 ],  // red
         [ 1.0, 1.0, 0.0, 1.0 ],  // yellow
@@ -131,12 +123,26 @@ Shape.prototype.quad = function(a,b,c,d){
         [ 0.0, 1.0, 1.0, 1.0 ],  // cyan
         [ 1.0, 1.0, 1.0, 1.0 ]   // white
     ];
+}
+
+Shape.prototype.quad = function(a,b,c,d){
+    var vertices = [ 
+        vec4( -0.5, -0.5,  0.5, 1.0 ),
+        vec4( -0.5,  0.5,  0.5, 1.0 ),
+        vec4(  0.5,  0.5,  0.5, 1.0 ),
+        vec4(  0.5, -0.5,  0.5, 1.0 ),
+        vec4( -0.5, -0.5, -0.5, 1.0 ),
+        vec4( -0.5,  0.5, -0.5, 1.0 ),
+        vec4(  0.5,  0.5, -0.5, 1.0 ),
+        vec4(  0.5, -0.5, -0.5, 1.0 )
+    ];
+    
     var indices = [ a, b, c, d ];
     for ( var i = 0; i < indices.length; ++i ) {
         this.points.push( vertices[indices[i]] );
         
     }
-    this.colors.push(vertexColors[a]);
+    this.colors.push(this.vertexColors[a]);
 }
 
 Shape.prototype.translate = function(x,y,z){
@@ -158,7 +164,7 @@ Shape.prototype.scale = function(x,y,z){
     }
 }
 
-function Cube(x,y,z){
+function Cube(x,y,z,scale){
     Shape.apply(this,arguments);
     this.quad( 1, 0, 3, 2 );
     this.quad( 2, 3, 7, 6 );
@@ -166,19 +172,41 @@ function Cube(x,y,z){
     this.quad( 6, 5, 1, 2 );
     this.quad( 4, 5, 6, 7 );
     this.quad( 5, 4, 0, 1 );
-    this.translate(x,y,z);
+    if(scale){
+        this.scale(scale,scale,scale);
+        this.scaleVal = scale;
+    }
+    this.translate(x,y+0.5,z);
+    this.loc[0]=x;
+    this.loc[1]=y+0.5;
+    this.loc[2]=z;
 }
 
+
+
+//negative to positive 10 in x and z
 function Quad(){
     Shape.apply(this,arguments);
     this.quad( 3, 0, 4, 7 );
     this.translate(0,0.5,0);
-    this.scale(20,0,20);
+    var s1=20;
+    var s2 = 20;
+    this.scale(s1,0,s2);
 }
+
+
+
 
 Quad.prototype=Object.create(Shape.prototype);
 Quad.prototype.constructor=Quad;
-
+Quad.prototype.dim = function(){
+    var ret = vec4();
+    ret[0] = this.points[2][0]; //min x
+    ret[1] = this.points[0][0]; //max x
+    ret[2] = this.points[2][2] ;//min z
+    ret[3] = this.points[0][2]; //max z
+    return ret;
+}
 
   
 Cube.prototype = Object.create(Shape.prototype);
@@ -224,7 +252,10 @@ Cube.prototype.render=function(){
     for(var i=0;i<this.velocity.length;i++){
         this.loc[i] += this.velocity[i];
     }
-    var modelViewMatrix=mult(viewMatrix,this.rot);        
+    //this.translate(-this.loc[0],-this.loc[1],-this.loc[2]);
+    //this.rotate(this.rot_velocity[0],this.rot_velocity[1],this.rot_velocity[2]);   
+    var modelViewMatrix=mult(viewMatrix,this.rot);
+    //this.translate(this.loc[0],this.loc[1],this.loc[2]);        
     gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
     gl.bufferData( gl.ARRAY_BUFFER, flatten(this.points), gl.STATIC_DRAW );
     gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
@@ -270,8 +301,38 @@ Quad.prototype.render=function(){
 }
 
 
+Cube.prototype.setColor = function(color){
+    for(var i=0;i<this.colors.length;i++){
+        this.colors[i] = color;
+    }
+}
 
+Cube.prototype.rotate = function(thetaX,thetaY,thetaZ){
+    var cosx = Math.cos(thetaX/180*Math.PI);
+    var sinx = Math.sin(thetaX/180*Math.PI);
+var cosy = Math.cos(thetaY/180*Math.PI);
+    var siny = Math.sin(thetaY/180*Math.PI);
+var cosz = Math.cos(thetaZ/180*Math.PI);
+    var sinz = Math.sin(thetaZ/180*Math.PI);
 
+    var rx= mat4( 1.0,  0.0,  0.0, 0.0, //row major
+                           0.0,  cosx, -sinx, 0.0,
+                           0.0,  sinx,  cosx, 0.0,
+                           0.0,  0.0,  0.0, 1.0 );
+
+    var ry = mat4( cosy, 0.0, siny, 0.0,
+                         0.0, 1.0,  0.0, 0.0,
+                         -siny,0.0,  cosy, 0.0,
+                         0.0, 0.0,  0.0, 1.0 );
+    var rz = mat4( cosz, -sinz, 0.0, 0.0,
+                         sinz,  cosz, 0.0, 0.0,
+                         0.0,  0.0, 1.0, 0.0,
+                         0.0,  0.0, 0.0, 1.0 );
+
+    this.rot = mult(rx,this.rot);
+    this.rot = mult(ry,this.rot);
+    this.rot = mult(rz,this.rot);
+}
 
 
 
@@ -311,7 +372,7 @@ window.onload = function init() {
     if ( !gl ) { alert( "WebGL isn't available" ); }
 
     gl.viewport( 0, 0, canvas.width, canvas.height );
-    gl.clearColor( 1.0, 1.0, 1.0, 1.0 );
+    gl.clearColor( 0.25, 0.25, 0.25, 0.25 );
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -319,6 +380,12 @@ window.onload = function init() {
 
     light = vec3(-2.0, 2.0, 0.0);
     r_theta = mat4();
+
+
+
+    
+
+
     // matrix for shadow projection
 
     m = mat4();
@@ -332,12 +399,18 @@ window.onload = function init() {
     eye = vec3(1.0, 1.0, 1.0);
 
     //mycube = new Cube(5,0.5,0);
-    scene.push(new Quad()); 
-    scene.push(new Cube(5,0.5,0));
+    scene.push(new Quad());
+    dim = scene[0].dim();
+    for(var i=dim[0];i<dim[1];i+=2){
+        tracks.push(i);
+    }
+    
+    //tracks
+   
     black = vec4(0.0, 0.0, 0.0, 1.0);
-
-    document.getElementById("mouseLoc").textContent ="no click";
-    document.getElementById("worldLoc").textContent ="no click";
+    red = vec4( 1.0, 0.0, 0.0, 1.0 );
+    document.getElementById("escaped").textContent ="0";
+    document.getElementById("eliminated").textContent ="0";
     //
     //  Add event listeners
     //
@@ -350,30 +423,20 @@ window.onload = function init() {
         //call unproject
 
         var vec = vec3(event.pageX - canvasbox.left, event.pageY - canvasbox.top, 0);
-        document.getElementById("mouseLoc").textContent =
-            "clientX: " + vec[0] +
-            " - clientY: " + vec[1];
         var p0 = unproject(vec[0], vec[1], near, viewMatrix, projectionMatrix, viewport);
         var p1 = unproject(vec[0], vec[1], far, viewMatrix, projectionMatrix, viewport);
         //console.log(p0);
         //console.log(p1);
 
-        /*document.getElementById("worldLoc").textContent = 
-            "worldX: "+res[0]+
-            "\nworldY: "+res[1]+
-            "\nworldZ: "+res[2]+
-            "\nworld[3]: "+res[3];*/
-
-        //create a line
         //scene.push(new LineSegment(p0,p1,black));
-        scene.push(new Cube(p1[0],p1[1],p1[2]));
+        scene.push(new Cube(p1[0],p1[1],p1[2],0.25));
         var vel = vec3();
         vel[0]=p1[0]-p0[0];
         vel[1]=p1[1]-p0[1];
         vel[2]=p1[2]-p0[2];
         var normV = normalize(vel);
         for(var i=0;i<normV.length;i++){
-            normV[i] /= -2;
+            normV[i] /= -1;
         }
         scene[scene.length-1].velocity[0]=normV[0];
         scene[scene.length-1].velocity[1]=normV[1];
@@ -403,7 +466,30 @@ window.onload = function init() {
 
     
     render();
-
+    //console.log(tracks);
+    setInterval(function(){
+        var n = Math.floor(Math.random()*tracks.length);
+        console.log(n);
+        var contains=false;
+        for(var j=1;j<scene.length;j++){
+            if((scene[j].loc[0] == tracks[n])&&(scene[j].loc[1] == 0.5)){
+                contains=true; 
+                console.log("CONTAINS");       
+            }
+        }
+        if(contains){
+            return;
+        }
+        //if(Math.random()<0.1){
+            scene.push(new Cube(tracks[n],0,dim[2]));
+            scene[scene.length-1].velocity[2] = 0.05;
+            //scene[scene.length-1].rot_velocity[0] = Math.random()*5;
+            //scene[scene.length-1].rot_velocity[1] = Math.random()*5;
+            //scene[scene.length-1].rot_velocity[2] = Math.random()*5;
+            scene[scene.length-1].setColor(black);
+        //}
+        
+    },500);
 }
 
 
@@ -437,18 +523,60 @@ var render = function() {
         //loop through all the objects created
         //render them
 
-
+        //y = loc[1]-0.5*scale
         for(var i=0;i<scene.length;i++){
             scene[i].render();
         }
 
         for(var i=1;i<scene.length;i++){
-            if(scene[i].loc[1]<=0){
-                console.log("DELETOS");
-                scene.splice(i,1);
+            if(scene[i].scaleVal){
+                //console.log(scene[i].scale);
+                if(scene[i].loc[1]-0.5*scene[i].scaleVal<0){
+                    console.log("DELETOS");
+                    scene.splice(i,1);    
+                }    
+            }else{
+                if(scene[i].loc[1]-0.5<0){
+                    console.log("DELETOS");
+                    scene.splice(i,1);
+                }    
             }
         }
 
+        for(var i=1;i<scene.length;i++){
+            for (var j=1;j<scene.length;j++){
+                if((Math.abs(scene[i].loc[0] - scene[j].loc[0])<0.5)
+                    &&(Math.abs(scene[i].loc[1] - scene[j].loc[1])<0.5)
+                    &&(Math.abs(scene[i].loc[2] - scene[j].loc[2])<0.5)
+                    &&(i!=j)){
+                    console.log("DELETOS");
+                    scene[i].setColor(red);
+                    scene[j].setColor(red);
+                    //setTimeout(function(){
+                        scene.splice(i,1);
+                        if(j<i){
+                            scene.splice(j,1);    
+                        }else{
+                            scene.splice(j-1,1);
+                        }
+                        eliminated++;
+                        document.getElementById("eliminated").textContent =eliminated.toString();
+                    //},10);
+                    
+                }
+            }
+        }
+
+        for(var i=1;i<scene.length;i++){
+            if((scene[i].loc[2]>10.5)&&(scene[i].loc[1]==0.5)){
+                scene.splice(i,1);
+                escaped++;
+                document.getElementById("escaped").textContent =escaped.toString();
+                
+            }
+        }
+        
+        
 
         // send color and matrix for cube then render
         //mycube.load();
