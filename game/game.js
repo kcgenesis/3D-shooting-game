@@ -1,7 +1,7 @@
 "use strict";
 
 var canvas,canvasbox;
-
+var program;
 var gl;
 
 var points = [];
@@ -36,12 +36,25 @@ var aspect;
 var viewMatrix,shadowViewMatrix, projectionMatrix;
 var modelViewMatrixLoc, projectionMatrixLoc;
 var vBuffer,vPosition;
-var r_theta;
+var u_fColor;
+
+var ambientColor, diffuseColor, specularColor;
+var lightPos = vec4(-2.0, 2.0, 0.0,1.0 );
+var lightAmbient = vec4(0.2, 0.2, 0.2, 1.0 );
+var lightDiffuse = vec4( 1.0, 1.0, 1.0, 1.0 );
+var lightSpecular = vec4( 1.0, 1.0, 1.0, 1.0 );
+
+var shadowAmbient = vec4( 0.0, 0.0, 0.0, 1.0 );
+var shadowDiffuse = vec4( 0.0, 0.0, 0.0, 1.0);
+var shadowSpecular = vec4( 0.0, 0.0, 0.0, 1.0 );
+var shadowShininess = 0.0;
+
+var nBuffer,vNormal;
+//var r_theta;
 //var r_thetaLoc;
-var fColor;
+
 
 var eye, at, up;
-var light;
 
 var m;
 
@@ -77,35 +90,6 @@ function unproject(clickX, clickY, clickZ, view, proj, viewport) {
     dest[2] = out[2] / out[3];
     return dest;
 }
-/*
-    ORIGINAL
-    function unproject(clickX, clickY, clickZ, view, proj, viewport) {
-        var m = mat4.create();
-        mat4.mul(m, proj, view);
-        var invertedM = mat4.create();
-        if(!mat4.invert(invertedM, m)) {return null;}
-        
-        var cY = viewport[3] - clickY;
-        var input = vec4.create();
-        var dest = vec4.create();
-        input[0] = (clickX - viewport[0]) / viewport[2]  * 2.0 - 1.0;
-        input[1] = (cY - viewport[1]) / viewport[3]  * 2.0 - 1.0;
-        input[2] = 2.0 * clickZ - 1.0;
-        input[3] = 1.0;
-        var out = vec4.create();
-        vec4.transformMat4(out, input, invertedM);
-        
-        if(out[3] === 0.0) { return null; }
-        dest[0] = out[0] / out[3];
-        dest[1] = out[1] / out[3];
-        dest[2] = out[2] / out[3];
-        return dest;
-    }
-*/
-
-
-//each shape has its own rotation matrix, which will be sent to the shaders.
-
 
 function Shape(x,y,z){
     this.rot = mat4();
@@ -113,6 +97,7 @@ function Shape(x,y,z){
     this.loc = vec3(x,y,z);
     this.points = [];
     this.colors = [];
+    this.normals =[];
     this.velocity = [0,0,0];
     this.vertexColors = [
         [ 0.0, 0.0, 0.0, 1.0 ],  // black
@@ -137,13 +122,18 @@ Shape.prototype.quad = function(a,b,c,d){
         vec4(  0.5,  0.5, -0.5, 1.0 ),
         vec4(  0.5, -0.5, -0.5, 1.0 )
     ];
-    
+    var t1 = subtract(vertices[b], vertices[a]);
+     var t2 = subtract(vertices[c], vertices[b]);
+     var normal = cross(t1, t2);
+     var normal = vec3(normal);
+     //console.log(normal);
     var indices = [ a, b, c, d ];
     for ( var i = 0; i < indices.length; ++i ) {
         this.points.push( vertices[indices[i]] );
-        
+        this.normals.push(normal);
     }
     this.colors.push(this.vertexColors[a]);
+
 }
 
 Shape.prototype.translate = function(x,y,z){
@@ -181,7 +171,13 @@ function Cube(x,y,z,scale){
     this.loc[0]=x;
     this.loc[1]=y+0.5;
     this.loc[2]=z;
+    this.materialAmbient = vec4( 0.0, 0.5, 0.0, 1.0 );
+    this.materialDiffuse = vec4( 0.0, 0.8, 1.0, 1.0);
+    this.materialSpecular = vec4( 0.5, 0.2, 1.0, 1.0 );
+    this.materialShininess = 100.0;
 }
+
+
 
 
 
@@ -193,6 +189,10 @@ function Quad(){
     var s1=20;
     var s2 = 20;
     this.scale(s1,0,s2);
+    this.materialAmbient = vec4( 0.5, 1.0, 0.5, 1.0 );
+    this.materialDiffuse = vec4( 0.8, 0.8, 0.8, 1.0);
+    this.materialSpecular = vec4( 1.0, 0.8, 0.2, 1.0 );
+    this.materialShininess = 50.0;
 }
 
 
@@ -228,23 +228,6 @@ function LineSegment(p1,p2,color){
 LineSegment.prototype=Object.create(Shape.prototype);
 LineSegment.prototype.constructor=LineSegment;
 
-/*
-Cube.prototype.load = function(){
-    points = [];
-    colors=[];
-    
-    for(var i=0;i<this.points.length;i++){
-        points.push(this.points[i]);
-    }
-    for(var i=0;i<this.rot.length;i++){
-        for(var j=0;j<this.rot[i].length;j++){
-            r_theta[i][j]=this.rot[i][j];
-        }
-    }
-    for(var i=0;i<this.colors.length;i++){
-        colors.push(this.colors[i]);
-    }
-}*/
 
 Cube.prototype.render=function(){
     //console.log(this.rot);
@@ -262,25 +245,59 @@ Cube.prototype.render=function(){
     gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
     gl.enableVertexAttribArray( vPosition );
 
+    gl.bindBuffer( gl.ARRAY_BUFFER, nBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.normals), gl.STATIC_DRAW );
+    gl.vertexAttribPointer( vNormal, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vNormal );
+
     gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(modelViewMatrix) );
     gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
     
+    var ambientProduct = mult(lightAmbient, this.materialAmbient);
+    var diffuseProduct = mult(lightDiffuse, this.materialDiffuse);
+    var specularProduct = mult(lightSpecular, this.materialSpecular);
+
+    gl.uniform4fv(gl.getUniformLocation(program, "ambientProduct"),
+       flatten(ambientProduct));
+    gl.uniform4fv(gl.getUniformLocation(program, "diffuseProduct"),
+       flatten(diffuseProduct) );
+    gl.uniform4fv(gl.getUniformLocation(program, "specularProduct"),
+       flatten(specularProduct) );
+    gl.uniform4fv(gl.getUniformLocation(program, "lightPosition"),
+       flatten(lightPos) );
+
+    gl.uniform1f(gl.getUniformLocation(program,
+       "shininess"),this.materialShininess);
+
     //6 faces 4 points each: each face has a shadow!
     for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(fColor, flatten(this.colors[i/4]));
+        gl.uniform4fv(u_fColor, flatten(this.colors[i/4]));
         gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
-        gl.uniform4fv(fColor, flatten(black));
+        gl.uniform4fv(u_fColor, flatten(black));
         gl.drawArrays( gl.LINE_LOOP, i, 4 );
     }
 
-    var shadowViewMatrix = mult(viewMatrix, translate(light[0], light[1], light[2]));
+    var ambientProduct = mult(lightAmbient, shadowAmbient);
+    var diffuseProduct = mult(lightDiffuse, shadowDiffuse);
+    var specularProduct = mult(lightSpecular, shadowSpecular);
+
+    gl.uniform4fv(gl.getUniformLocation(program, "ambientProduct"),
+       flatten(ambientProduct));
+    gl.uniform4fv(gl.getUniformLocation(program, "diffuseProduct"),
+       flatten(diffuseProduct) );
+    gl.uniform4fv(gl.getUniformLocation(program, "specularProduct"),
+       flatten(specularProduct) );
+    gl.uniform1f(gl.getUniformLocation(program,
+       "shininess"),shadowShininess);
+
+    var shadowViewMatrix = mult(viewMatrix, translate(lightPos[0], lightPos[1], lightPos[2]));
     shadowViewMatrix = mult(shadowViewMatrix, m);
-    shadowViewMatrix = mult(shadowViewMatrix, translate(-light[0], -light[1],-light[2]));
+    shadowViewMatrix = mult(shadowViewMatrix, translate(-lightPos[0], -lightPos[1],-lightPos[2]));
     //load shadow matrix and color
     gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(shadowViewMatrix) );
     gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
         
-    gl.uniform4fv(fColor, flatten(black));
+    gl.uniform4fv(u_fColor, flatten(black));
     //draw shadow for ea. face
     for(var i=0; i<this.points.length; i+=4) {
         gl.drawArrays(gl.TRIANGLE_FAN, i, 4);
@@ -288,15 +305,40 @@ Cube.prototype.render=function(){
 }
 
 Quad.prototype.render=function(){
+
+
+
     gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
     gl.bufferData( gl.ARRAY_BUFFER, flatten(this.points), gl.STATIC_DRAW );
     gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
     gl.enableVertexAttribArray( vPosition );
 
+    gl.bindBuffer( gl.ARRAY_BUFFER, nBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.normals), gl.STATIC_DRAW );
+    gl.vertexAttribPointer( vNormal, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vNormal );
+
     gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(viewMatrix) );
     gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
+
+    var ambientProduct = mult(lightAmbient, this.materialAmbient);
+    var diffuseProduct = mult(lightDiffuse, this.materialDiffuse);
+    var specularProduct = mult(lightSpecular, this.materialSpecular);
+
+    gl.uniform4fv(gl.getUniformLocation(program, "ambientProduct"),
+       flatten(ambientProduct));
+    gl.uniform4fv(gl.getUniformLocation(program, "diffuseProduct"),
+       flatten(diffuseProduct) );
+    gl.uniform4fv(gl.getUniformLocation(program, "specularProduct"),
+       flatten(specularProduct) );
+    gl.uniform4fv(gl.getUniformLocation(program, "lightPosition"),
+       flatten(lightPos) );
+
+    gl.uniform1f(gl.getUniformLocation(program,
+       "shininess"),this.materialShininess);
+
     for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(fColor, flatten(this.colors[i/4]));
+        gl.uniform4fv(u_fColor, flatten(this.colors[i/4]));
         gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
     }
 }
@@ -348,7 +390,7 @@ LineSegment.prototype.render=function(){
     gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
     
     //for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(fColor, flatten(black));
+        gl.uniform4fv(u_fColor, flatten(black));
         gl.drawArrays( gl.LINES, 0, 1 );
     //}
 }
@@ -379,8 +421,8 @@ window.onload = function init() {
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(1.0, 2.0);
 
-    light = vec3(-2.0, 2.0, 0.0);
-    r_theta = mat4();
+    
+    //r_theta = mat4();
 
 
 
@@ -391,7 +433,7 @@ window.onload = function init() {
 
     m = mat4();
     m[3][3] = 0;
-    m[3][1] = -1/light[1];
+    m[3][1] = -1/lightPos[1];
 
 
     at = vec3(0.0, 0.0, 0.0);
@@ -453,7 +495,7 @@ window.onload = function init() {
     //
     //  Load shaders and initialize attribute buffers
     //
-    var program = initShaders( gl, "vertex-shader", "fragment-shader" );
+    program = initShaders( gl, "vertex-shader", "fragment-shader" );
     gl.useProgram( program );
 
 
@@ -465,7 +507,9 @@ window.onload = function init() {
     //gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
     //gl.enableVertexAttribArray( vPosition );
 
-    fColor = gl.getUniformLocation(program, "fColor");
+    nBuffer = gl.createBuffer();
+    vNormal = gl.getAttribLocation( program, "vNormal" );
+    u_fColor = gl.getUniformLocation(program, "u_fColor");
     modelViewMatrixLoc = gl.getUniformLocation( program, "modelViewMatrix" );
     projectionMatrixLoc = gl.getUniformLocation( program, "projectionMatrix" );
 
@@ -531,6 +575,7 @@ var render = function() {
         //y = loc[1]-0.5*scale
         for(var i=0;i<scene.length;i++){
             scene[i].render();
+            //throw new Error("Something went badly wrong!");
         }
 
         for(var i=1;i<scene.length;i++){
@@ -580,50 +625,9 @@ var render = function() {
                 
             }
         }
-        
-        
+       
+        lightPos[0] = Math.sin(theta);
+        lightPos[2] = Math.cos(theta);
 
-        // send color and matrix for cube then render
-        //mycube.load();
-
-        /*
-        modelViewMatrix=mult(viewMatrix,r_theta);        
-        
-        gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
-        gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW );
-        gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
-        gl.enableVertexAttribArray( vPosition );
-
-
-        gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(modelViewMatrix) );
-        gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
-        //gl.uniformMatrix4fv(r_thetaLoc,false,flatten(r_theta));
-        // update light source
-
-        
-
-        //6 faces 4 points each: each face has a fadow!
-        for(var i=0; i<points.length; i+=4) {
-            gl.uniform4fv(fColor, flatten(colors[i]));
-            gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
-            gl.uniform4fv(fColor, flatten(black));
-            gl.drawArrays( gl.LINE_LOOP, i, 4 );
-        }
-        */
-
-        light[0] = Math.sin(theta);
-        light[2] = Math.cos(theta);
-
-/*
-        gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
-        gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW );
-        gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
-        gl.enableVertexAttribArray( vPosition );
-*/
-        //gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(modelViewMatrix) );
-        
-        //obtain model view matrix for shadow
-        
-        
         requestAnimFrame(render);
     }
