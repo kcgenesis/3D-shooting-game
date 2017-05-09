@@ -239,20 +239,7 @@ Quad.prototype.dim = function(){
 
   
 
-function LineSegment(p1,p2,color){
-    Shape.apply(this,arguments);
-    if(!((p1.length == p2.length)&&(p1.length==4))){
-        throw "LineSegment(p1,p2): trying to create line segment from non-points";
-        return;
-    }
-    this.points = [p1,p2];
-    this.colors = [color,color];
-}
 
-
-
-LineSegment.prototype=Object.create(Shape.prototype);
-LineSegment.prototype.constructor=LineSegment;
 
 
 Cube.prototype.render=function(){
@@ -404,29 +391,6 @@ var cosz = Math.cos(thetaZ/180*Math.PI);
 }
 
 
-
-LineSegment.prototype.render=function(){
-    var modelViewMatrix=mult(viewMatrix,this.rot);
-    gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
-    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.points), gl.STATIC_DRAW );
-    gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
-    gl.enableVertexAttribArray( vPosition );
-
-    gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(modelViewMatrix) );
-    gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
-    
-    //for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(u_fColor, flatten(black));
-        gl.drawArrays( gl.LINES, 0, 1 );
-    //}
-}
-
-
-
-
-
-
-
 window.onload = function init() {
     canvas = document.getElementById( "gl-canvas" );
     canvasbox = canvas.getBoundingClientRect();
@@ -485,11 +449,6 @@ window.onload = function init() {
     //
     //  Add event listeners
     //
-    //document.getElementById( "inc_theta" ).onclick = function () {v_theta += dr;console.log(eye);};
-    //document.getElementById( "dec_theta" ).onclick = function () {v_theta -= dr;console.log(eye);};
-    //document.getElementById( "inc_phi" ).onclick = function () {v_phi += dr;console.log(eye);};
-    //document.getElementById( "dec_phi" ).onclick = function () {v_phi -= dr;console.log(eye);};
-
     document.getElementById("gl-canvas").onclick = function(e){
         //call unproject
         fired++;
@@ -498,10 +457,7 @@ window.onload = function init() {
         var vec = vec3(event.pageX - canvasbox.left, event.pageY - canvasbox.top, 0);
         var p0 = unproject(vec[0], vec[1], near, viewMatrix, projectionMatrix, viewport);
         var p1 = unproject(vec[0], vec[1], far, viewMatrix, projectionMatrix, viewport);
-        //console.log(p0);
-        //console.log(p1);
-
-        //scene.push(new LineSegment(p0,p1,black));
+       
         scene.push(new Bullet(p1[0],p1[1],p1[2],0.25));
         var vel = vec3();
         vel[0]=p1[0]-p0[0];
@@ -556,15 +512,9 @@ window.onload = function init() {
         if(contains){
             return;
         }
-        //if(Math.random()<0.1){
-            scene.push(new Enemy(tracks[n],0,dim[2]));
-            scene[scene.length-1].velocity[2] = 0.1*(Math.random()*0.5)+0.05;
-            //scene[scene.length-1].rot_velocity[0] = Math.random()*5;
-            //scene[scene.length-1].rot_velocity[1] = Math.random()*5;
-            //scene[scene.length-1].rot_velocity[2] = Math.random()*5;
-            scene[scene.length-1].setColor(black);
-        //}
-        
+        scene.push(new Enemy(tracks[n],0,dim[2]));
+        scene[scene.length-1].velocity[2] = 0.1*(Math.random()*0.5)+0.05;    
+        scene[scene.length-1].setColor(black);
     },500);
 }
 
