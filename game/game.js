@@ -6,7 +6,10 @@ var gl;
 
 var points = [];
 var colors = [];
-
+var KEYCODE_w = 87;
+var KEYCODE_a = 65;
+var KEYCODE_s = 83;
+var KEYCODE_d = 68;
 
 //perspective is applied FROM the point of the eye.
 //looking AT the origin
@@ -309,20 +312,7 @@ Quad.prototype.dim = function(){
 
   
 
-function LineSegment(p1,p2,color){
-    Shape.apply(this,arguments);
-    if(!((p1.length == p2.length)&&(p1.length==4))){
-        throw "LineSegment(p1,p2): trying to create line segment from non-points";
-        return;
-    }
-    this.points = [p1,p2];
-    this.colors = [color,color];
-}
 
-
-
-LineSegment.prototype=Object.create(Shape.prototype);
-LineSegment.prototype.constructor=LineSegment;
 
 
 Cube.prototype.render=function(){
@@ -484,29 +474,6 @@ var cosz = Math.cos(thetaZ/180*Math.PI);
 }
 
 
-
-LineSegment.prototype.render=function(){
-    var modelViewMatrix=mult(viewMatrix,this.rot);
-    gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
-    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.points), gl.STATIC_DRAW );
-    gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
-    gl.enableVertexAttribArray( vPosition );
-
-    gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(modelViewMatrix) );
-    gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
-    
-    //for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(u_fColor, flatten(black));
-        gl.drawArrays( gl.LINES, 0, 1 );
-    //}
-}
-
-
-
-
-
-
-
 window.onload = function init() {
     canvas = document.getElementById( "gl-canvas" );
     canvasbox = canvas.getBoundingClientRect();
@@ -521,7 +488,7 @@ window.onload = function init() {
     if ( !gl ) { alert( "WebGL isn't available" ); }
 
     gl.viewport( 0, 0, canvas.width, canvas.height );
-    gl.clearColor( 0.25, 0.25, 0.25, 0.25 );
+    gl.clearColor( 0.1, 0.1, 0.1, 1 );
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -565,11 +532,6 @@ window.onload = function init() {
     //
     //  Add event listeners
     //
-    //document.getElementById( "inc_theta" ).onclick = function () {v_theta += dr;console.log(eye);};
-    //document.getElementById( "dec_theta" ).onclick = function () {v_theta -= dr;console.log(eye);};
-    //document.getElementById( "inc_phi" ).onclick = function () {v_phi += dr;console.log(eye);};
-    //document.getElementById( "dec_phi" ).onclick = function () {v_phi -= dr;console.log(eye);};
-
     document.getElementById("gl-canvas").onclick = function(e){
         //call unproject
         fired++;
@@ -578,10 +540,7 @@ window.onload = function init() {
         var vec = vec3(event.pageX - canvasbox.left, event.pageY - canvasbox.top, 0);
         var p0 = unproject(vec[0], vec[1], near, viewMatrix, projectionMatrix, viewport);
         var p1 = unproject(vec[0], vec[1], far, viewMatrix, projectionMatrix, viewport);
-        //console.log(p0);
-        //console.log(p1);
-
-        //scene.push(new LineSegment(p0,p1,black));
+       
         scene.push(new Bullet(p1[0],p1[1],p1[2],0.25));
         var vel = vec3();
         vel[0]=p1[0]-p0[0];
@@ -598,6 +557,7 @@ window.onload = function init() {
         console.log(scene.length);
 
     }
+    document.addEventListener('keydown',keycontrol);
     //
     //  Load shaders and initialize attribute buffers
     //
@@ -628,31 +588,52 @@ window.onload = function init() {
     //console.log(tracks);
     setInterval(function(){
         var n = Math.floor(Math.random()*tracks.length);
-        console.log(n);
+        //console.log(n);
         var contains=false;
         for(var j=1;j<scene.length;j++){
             if((scene[j].loc[0] == tracks[n])&&(scene[j].loc[1] == 0.5)){
                 contains=true; 
-                console.log("CONTAINS");       
+                //console.log("CONTAINS");       
             }
         }
         if(contains){
             return;
         }
-        //if(Math.random()<0.1){
-            scene.push(new Enemy(tracks[n],0,dim[2]));
-            scene[scene.length-1].velocity[2] = 0.05;
-            //scene[scene.length-1].rot_velocity[0] = Math.random()*5;
-            //scene[scene.length-1].rot_velocity[1] = Math.random()*5;
-            //scene[scene.length-1].rot_velocity[2] = Math.random()*5;
-            scene[scene.length-1].setColor(black);
-        //}
-        
+        scene.push(new Enemy(tracks[n],0,dim[2]));
+        scene[scene.length-1].velocity[2] = 0.1*(Math.random()*0.5)+0.05;    
+        scene[scene.length-1].setColor(black);
     },500);
 }
 
 
+function keycontrol(event){
+  if(((event.keyCode == KEYCODE_w)
+  ||(event.keyCode == KEYCODE_a)
+  ||(event.keyCode == KEYCODE_s)
+  ||(event.keyCode == KEYCODE_d))) {
+   
+    if(event.keyCode == KEYCODE_w) {
+      if(v_theta*180/Math.PI<174){v_theta += dr;}
+      console.log(v_theta);
 
+    }
+    else if(event.keyCode == KEYCODE_a) {
+      if(v_phi*180/Math.PI>5){
+        v_phi -= dr;
+      }
+        
+    }
+    else if(event.keyCode == KEYCODE_s) {
+        if(v_theta*180/Math.PI>6){
+          v_theta -= dr;console.log(v_theta*180/Math.PI);
+        }
+    }
+    else if(event.keyCode == KEYCODE_d) {
+        if(v_phi*180/Math.PI<81){v_phi += dr;}
+        console.log(v_phi*180/Math.PI);
+    }
+  }
+}
 
 
 
@@ -728,7 +709,7 @@ var render = function() {
         }
 
         for(var i=1;i<scene.length;i++){
-            if((scene[i].loc[2]>10.5)&&(scene[i].loc[1]==0.5)){
+            if((scene[i].loc[2]>9.5)&&(scene[i].loc[1]==0.5)){
                 scene.splice(i,1);
                 escaped++;
                 document.getElementById("escaped").textContent =escaped.toString();
