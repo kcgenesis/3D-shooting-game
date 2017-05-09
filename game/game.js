@@ -39,7 +39,6 @@ var aspect;
 var viewMatrix,shadowViewMatrix, projectionMatrix;
 var modelViewMatrixLoc, projectionMatrixLoc;
 var vBuffer,vPosition;
-var u_fColor;
 
 var ambientColor, diffuseColor, specularColor;
 var lightPos = vec4(-2.0, 2.0, 0.0,1.0 );
@@ -53,7 +52,6 @@ var shadowSpecular = vec4( 0.0, 0.0, 0.0, 1.0 );
 var shadowShininess = 0.0;
 
 var nBuffer,vNormal;
-var tBuffer,vTexCoord;
 //var r_theta;
 //var r_thetaLoc;
 
@@ -61,12 +59,6 @@ var tBuffer,vTexCoord;
 var eye, at, up;
 
 var m;
-var texCoord = [
-    vec2(0, 0),
-    vec2(0, 1),
-    vec2(1, 1),
-    vec2(1, 0)
-];
 
 //var red;
 //var mycube;
@@ -83,13 +75,6 @@ var rx,ry,rz;
 var cubeImage;
 var texSize = 512;
 
-function initTextures() {
-  cubeImage = new Image();
-  cubeImage.src = 'sa.gif';
-  //cubeImage.crossOrigin = '';
-  cubeImage.onload = function() { configureTexture(cubeImage); }
-  
-}
 
 /*
 function handleTextureLoaded(image) {
@@ -129,18 +114,7 @@ function IsImageOk(img) {
 
 
 
-function configureTexture(image) {
-    var texture = gl.createTexture();
-    gl.activeTexture( gl.TEXTURE0 );
-    gl.bindTexture( gl.TEXTURE_2D, texture );
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, texSize, texSize, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, image);
-    gl.generateMipmap( gl.TEXTURE_2D );
-    gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
-        gl.NEAREST_MIPMAP_LINEAR );
-    gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
-}
+
 
 function unproject(clickX, clickY, clickZ, view, proj, viewport) {
     var m = mult(proj, view);
@@ -170,7 +144,6 @@ function Shape(x,y,z){
     this.points = [];
     this.colors = [];
     this.normals =[];
-    this.texCoordsArray=[];
     this.velocity = [0,0,0];
     this.vertexColors = [
         [ 0.0, 0.0, 0.0, 1.0 ],  // black
@@ -184,7 +157,7 @@ function Shape(x,y,z){
     ];
 }
 
-Shape.prototype.quad = function(a,b,c,d,t){
+Shape.prototype.quad = function(a,b,c,d){
     var vertices = [ 
         vec4( -0.5, -0.5,  0.5, 1.0 ),
         vec4( -0.5,  0.5,  0.5, 1.0 ),
@@ -204,9 +177,6 @@ Shape.prototype.quad = function(a,b,c,d,t){
     for ( var i = 0; i < indices.length; ++i ) {
         this.points.push( vertices[indices[i]] );
         this.normals.push(normal);
-        if(t){
-            this.texCoordsArray.push(texCoord[i]);
-        }
     }
     this.colors.push(this.vertexColors[a]);
 
@@ -285,7 +255,7 @@ Bullet.prototype.constructor = Enemy;
 //negative to positive 10 in x and z
 function Quad(){
     Shape.apply(this,arguments);
-    this.quad( 3, 0, 4, 7,true );
+    this.quad( 3, 0, 4, 7);
     this.translate(0,0.5,0);
     var s1=20;
     var s2 = 20;
@@ -316,16 +286,11 @@ Quad.prototype.dim = function(){
 
 
 Cube.prototype.render=function(){
-    //console.log(this.rot);
-    //console.log(view);
     this.translate(this.velocity[0],this.velocity[1],this.velocity[2]);
     for(var i=0;i<this.velocity.length;i++){
         this.loc[i] += this.velocity[i];
     }
-    //this.translate(-this.loc[0],-this.loc[1],-this.loc[2]);
-    //this.rotate(this.rot_velocity[0],this.rot_velocity[1],this.rot_velocity[2]);   
     var modelViewMatrix=mult(viewMatrix,this.rot);
-    //this.translate(this.loc[0],this.loc[1],this.loc[2]);        
     gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
     gl.bufferData( gl.ARRAY_BUFFER, flatten(this.points), gl.STATIC_DRAW );
     gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
@@ -357,9 +322,7 @@ Cube.prototype.render=function(){
 
     //6 faces 4 points each: each face has a shadow!
     for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(u_fColor, flatten(this.colors[i/4]));
         gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
-        gl.uniform4fv(u_fColor, flatten(black));
         gl.drawArrays( gl.LINE_LOOP, i, 4 );
     }
 
@@ -383,7 +346,6 @@ Cube.prototype.render=function(){
     gl.uniformMatrix4fv( modelViewMatrixLoc, false, flatten(shadowViewMatrix) );
     gl.uniformMatrix4fv( projectionMatrixLoc, false, flatten(projectionMatrix) );
         
-    gl.uniform4fv(u_fColor, flatten(black));
     //draw shadow for ea. face
     for(var i=0; i<this.points.length; i+=4) {
         gl.drawArrays(gl.TRIANGLE_FAN, i, 4);
@@ -424,15 +386,9 @@ Quad.prototype.render=function(){
     gl.uniform1f(gl.getUniformLocation(program,
        "shininess"),this.materialShininess);
 
-    gl.bindBuffer( gl.ARRAY_BUFFER, tBuffer);
-    gl.bufferData( gl.ARRAY_BUFFER, flatten(this.texCoordsArray), gl.STATIC_DRAW );
-    gl.vertexAttribPointer(vTexCoord, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vTexCoord);
-
     
 
     for(var i=0; i<this.points.length; i+=4) {
-        gl.uniform4fv(u_fColor, flatten(this.colors[i/4]));
         gl.drawArrays( gl.TRIANGLE_FAN, i, 4 );
     }
 
@@ -496,10 +452,6 @@ window.onload = function init() {
 
     
     //r_theta = mat4();
-
-
-    initTextures();
-    
 
 
     // matrix for shadow projection
@@ -566,20 +518,10 @@ window.onload = function init() {
 
 
     vBuffer = gl.createBuffer();
-    //gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
-    //gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW );
-
     vPosition = gl.getAttribLocation( program, "vPosition" );
-
-    tBuffer = gl.createBuffer();
-    vTexCoord = gl.getAttribLocation( program, "vTexCoord");
-
-    //gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 );
-    //gl.enableVertexAttribArray( vPosition );
-
     nBuffer = gl.createBuffer();
     vNormal = gl.getAttribLocation( program, "vNormal" );
-    u_fColor = gl.getUniformLocation(program, "u_fColor");
+    
     modelViewMatrixLoc = gl.getUniformLocation( program, "modelViewMatrix" );
     projectionMatrixLoc = gl.getUniformLocation( program, "projectionMatrix" );
 
@@ -637,18 +579,11 @@ function keycontrol(event){
 
 
 
-
-
-
-
-
-
-
 var render = function() {
-        gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        
-        theta += 0.01;
-        if(theta > 2*Math.PI) theta -= 2*Math.PI;
+    gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    
+    theta += 0.01;
+    if(theta > 2*Math.PI) theta -= 2*Math.PI;
 
     var eyex,eyey,eyez;
     eyex=v_radius*Math.cos(v_phi)*Math.cos(v_theta);
@@ -660,65 +595,63 @@ var render = function() {
     projectionMatrix = perspective(fovy, aspect, near, far);
         
 
-        //loop through all the objects created
-        //render them
+    //loop through all the objects created
+    //render them     
+    for(var i=0;i<scene.length;i++){
+        scene[i].render();
+        
+    }
 
-        //y = loc[1]-0.5*scale
-        for(var i=0;i<scene.length;i++){
-            scene[i].render();
-            //throw new Error("Something went badly wrong!");
-        }
-
-        for(var i=1;i<scene.length;i++){
-            if(scene[i].scaleVal){
-                //console.log(scene[i].scale);
-                if(scene[i].loc[1]-0.5*scene[i].scaleVal<0){
-                    console.log("DELETOS");
-                    scene.splice(i,1);    
-                }    
-            }else{
-                if(scene[i].loc[1]-0.5<0){
-                    console.log("DELETOS");
-                    scene.splice(i,1);
-                }    
-            }
-        }
-
-        for(var i=1;i<scene.length;i++){
-            for (var j=1;j<scene.length;j++){
-                if((Math.abs(scene[i].loc[0] - scene[j].loc[0])<0.5)
-                    &&(Math.abs(scene[i].loc[1] - scene[j].loc[1])<0.5)
-                    &&(Math.abs(scene[i].loc[2] - scene[j].loc[2])<0.5)
-                    &&(i!=j)){
-                    console.log("DELETOS");
-                    scene[i].setColor(red);
-                    scene[j].setColor(red);
-                    //setTimeout(function(){
-                        scene.splice(i,1);
-                        if(j<i){
-                            scene.splice(j,1);    
-                        }else{
-                            scene.splice(j-1,1);
-                        }
-                        eliminated++;
-                        document.getElementById("eliminated").textContent =eliminated.toString();
-                    //},10);
-                    
-                }
-            }
-        }
-
-        for(var i=1;i<scene.length;i++){
-            if((scene[i].loc[2]>9.5)&&(scene[i].loc[1]==0.5)){
+    for(var i=1;i<scene.length;i++){
+        if(scene[i].scaleVal){
+            //console.log(scene[i].scale);
+            if(scene[i].loc[1]-0.5*scene[i].scaleVal<0){
+                console.log("DELETOS");
+                scene.splice(i,1);    
+            }    
+        }else{
+            if(scene[i].loc[1]-0.5<0){
+                console.log("DELETOS");
                 scene.splice(i,1);
-                escaped++;
-                document.getElementById("escaped").textContent =escaped.toString();
+            }    
+        }
+    }
+
+    for(var i=1;i<scene.length;i++){
+        for (var j=1;j<scene.length;j++){
+            if((Math.abs(scene[i].loc[0] - scene[j].loc[0])<0.5)
+                &&(Math.abs(scene[i].loc[1] - scene[j].loc[1])<0.5)
+                &&(Math.abs(scene[i].loc[2] - scene[j].loc[2])<0.5)
+                &&(i!=j)){
+                console.log("DELETOS");
+                //scene[i].setColor(red);
+                //scene[j].setColor(red);
+                //setTimeout(function(){
+                    scene.splice(i,1);
+                    if(j<i){
+                        scene.splice(j,1);    
+                    }else{
+                        scene.splice(j-1,1);
+                    }
+                    eliminated++;
+                    document.getElementById("eliminated").textContent =eliminated.toString();
+                //},10);
                 
             }
         }
-       
-        lightPos[0] = Math.sin(theta);
-        lightPos[2] = Math.cos(theta);
-
-        requestAnimFrame(render);
     }
+
+    for(var i=1;i<scene.length;i++){
+        if((scene[i].loc[2]>9.5)&&(scene[i].loc[1]==0.5)){
+            scene.splice(i,1);
+            escaped++;
+            document.getElementById("escaped").textContent =escaped.toString();
+            
+        }
+    }
+   
+    lightPos[0] = Math.sin(theta);
+    lightPos[2] = Math.cos(theta);
+
+    requestAnimFrame(render);
+}
